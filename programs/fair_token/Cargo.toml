@@ -1,0 +1,15 @@
+[package]
+name = "fair_token"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fair_token"
+crate-type = ["cdylib", "lib"]
+
+[features]
+no-entrypoint = []
+
+[dependencies]
+anchor-lang = { workspace = true }
+anchor-spl  = { workspace = true, features = ["token"] }

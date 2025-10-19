@@ -1,0 +1,1 @@
+8adced354f90f48f880c9bfe8e5715293db06371334c9053469655d0b06cd663  target/deploy/fair_token.so

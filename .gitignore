@@ -1,0 +1,10 @@
+target/
+.anchor/
+.solana/
+node_modules/
+**/*keypair.json
+**/id.json
+**/*.pem
+**/*.key
+.env
+.secrets

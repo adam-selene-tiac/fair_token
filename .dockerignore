@@ -1,0 +1,9 @@
+.git
+node_modules
+target
+.anchor
+.solana
+*.log
+**/*keypair.json
+**/id.json
+**/.env

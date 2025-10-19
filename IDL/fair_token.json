@@ -1,0 +1,922 @@
+{
+  "address": "6crPEdUww61S2GifdDKHWkFiZXw1EdFu8zR6XBXFjKL3",
+  "metadata": {
+    "name": "fair_token",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "buy_fair_token",
+      "docs": [
+        "Buy during initial sale (pre-finalization) or from vault (post-finalization).",
+        "- Pre-finalization: mint `lamports_sent` base units to user (PDA mint authority).",
+        "- Post-finalization: transfer `lamports_sent` base units from vault to user.",
+        "In both cases, SOL moves buyer → SOL vault, same amount as base units minted/transferred."
+      ],
+      "discriminator": [
+        198,
+        110,
+        90,
+        190,
+        45,
+        73,
+        51,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_vault_account",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "lamports_sent",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Trustless, singleton initialize:",
+        "- Only ADMIN may call",
+        "- Accepts `sale_end` at runtime within [MIN_WINDOW, MAX_WINDOW]",
+        "- Handoffs SPL mint authority from ADMIN to PDA `mint_authority`",
+        "- Establishes SOL vault (System-owned PDA) and token vault (program-owned PDA)",
+        "- Sets fixed price rule: 1 lamport == 1 base unit (see DECIMALS comment)"
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "docs": [
+            "Admin signer (hard-gated; remove `address=ADMIN` if you don't want gating)"
+          ],
+          "writable": true,
+          "signer": true,
+          "address": "EPUoToFUygyMeshTD3VLLvGuYwP89yZZzJpdbw95bTKk"
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "Pre-created SPL mint (vanity). Must be: decimals=DECIMALS, freeze=None, supply=0, mint_authority=admin.",
+            "We will handoff authority to the PDA inside this instruction."
+          ],
+          "writable": true
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "docs": [
+            "Global singleton config PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "docs": [
+            "Using AccountInfo to avoid Anchor's SystemAccount \"try_from_unchecked\" quirk during init."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault",
+          "docs": [
+            "Program-owned marker PDA for token vault state"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_vault_account",
+          "docs": [
+            "SPL token account controlled by `token_vault` PDA"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Canonical programs"
+          ],
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "sale_end",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "redeem_fair_token",
+      "docs": [
+        "Redeem during initial sale (pre-finalization) or after (post-finalization).",
+        "- Pre-finalization: burn `amount_to_redeem` base units from user; pay same SOL from vault to redeemer.",
+        "- Post-finalization: transfer `amount_to_redeem` base units from user to vault; pay same SOL from vault."
+      ],
+      "discriminator": [
+        107,
+        34,
+        33,
+        61,
+        119,
+        151,
+        25,
+        138
+      ],
+      "accounts": [
+        {
+          "name": "redeemer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "mint_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "sol_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  111,
+                  108,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  107,
+                  101,
+                  110,
+                  95,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          },
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_vault_account",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "user_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount_to_redeem",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "TokenVault",
+      "discriminator": [
+        121,
+        7,
+        84,
+        254,
+        151,
+        228,
+        43,
+        144
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "BuyMintEvent",
+      "discriminator": [
+        8,
+        186,
+        145,
+        45,
+        86,
+        200,
+        45,
+        111
+      ]
+    },
+    {
+      "name": "BuyVaultEvent",
+      "discriminator": [
+        174,
+        171,
+        91,
+        200,
+        91,
+        88,
+        71,
+        250
+      ]
+    },
+    {
+      "name": "InitializedEvent",
+      "discriminator": [
+        136,
+        202,
+        63,
+        120,
+        152,
+        146,
+        41,
+        79
+      ]
+    },
+    {
+      "name": "MinimumEnforcedEvent",
+      "discriminator": [
+        186,
+        32,
+        237,
+        68,
+        80,
+        108,
+        207,
+        25
+      ]
+    },
+    {
+      "name": "RedeemBurnEvent",
+      "discriminator": [
+        59,
+        25,
+        135,
+        3,
+        228,
+        219,
+        19,
+        229
+      ]
+    },
+    {
+      "name": "RedeemVaultEvent",
+      "discriminator": [
+        108,
+        228,
+        213,
+        238,
+        18,
+        39,
+        109,
+        217
+      ]
+    },
+    {
+      "name": "SaleFinalizedEvent",
+      "discriminator": [
+        152,
+        155,
+        171,
+        15,
+        203,
+        17,
+        49,
+        203
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "AlreadyInitialized",
+      "msg": "Already initialized."
+    },
+    {
+      "code": 6001,
+      "name": "SaleEndNotInRange",
+      "msg": "Sale end not in the allowed range."
+    },
+    {
+      "code": 6002,
+      "name": "MinSupplyTooLarge",
+      "msg": "Minimum supply is too large."
+    },
+    {
+      "code": 6003,
+      "name": "MintAuthorityMissing",
+      "msg": "Mint has no mint authority set."
+    },
+    {
+      "code": 6004,
+      "name": "WrongMintAuthority",
+      "msg": "Mint authority does not match the program's PDA."
+    },
+    {
+      "code": 6005,
+      "name": "FreezeNotRevoked",
+      "msg": "Freeze authority must be revoked (None) before initialization."
+    },
+    {
+      "code": 6006,
+      "name": "WrongDecimals",
+      "msg": "Mint has unexpected decimals."
+    },
+    {
+      "code": 6007,
+      "name": "NonZeroInitialSupply",
+      "msg": "Mint has non-zero supply at initialization."
+    },
+    {
+      "code": 6008,
+      "name": "InvalidOwner",
+      "msg": "Account owner must be System Program."
+    },
+    {
+      "code": 6009,
+      "name": "NonZeroData",
+      "msg": "Account must have zero data length."
+    },
+    {
+      "code": 6010,
+      "name": "WrongMint",
+      "msg": "Wrong mint passed."
+    },
+    {
+      "code": 6011,
+      "name": "WrongSolVault",
+      "msg": "Wrong SOL vault for this config."
+    },
+    {
+      "code": 6012,
+      "name": "MintAuthorityMustBeAdmin",
+      "msg": "Mint authority must be admin."
+    },
+    {
+      "code": 6013,
+      "name": "NoSOLSent",
+      "msg": "No SOL sent."
+    },
+    {
+      "code": 6014,
+      "name": "VaultInsufficient",
+      "msg": "Insufficient tokens available in vault."
+    },
+    {
+      "code": 6015,
+      "name": "ZeroTokenRedeem",
+      "msg": "Zero token redeem."
+    },
+    {
+      "code": 6016,
+      "name": "InsufficientTokens",
+      "msg": "Insufficient FairToken tokens."
+    },
+    {
+      "code": 6017,
+      "name": "VaultSOLInsufficient",
+      "msg": "Not enough SOL in vault."
+    },
+    {
+      "code": 6018,
+      "name": "InvalidMint",
+      "msg": "Invalid mint."
+    },
+    {
+      "code": 6019,
+      "name": "InvalidVault",
+      "msg": "Invalid SOL vault address."
+    },
+    {
+      "code": 6020,
+      "name": "NotInitialized",
+      "msg": "Not initialized."
+    },
+    {
+      "code": 6021,
+      "name": "WrongTokenVaultAccount",
+      "msg": "Wrong token vault account for this config."
+    },
+    {
+      "code": 6022,
+      "name": "WrongVaultAuthority",
+      "msg": "Token vault does not own token vault account."
+    },
+    {
+      "code": 6023,
+      "name": "WrongTokenVault",
+      "msg": "Wrong token vault for this config."
+    }
+  ],
+  "types": [
+    {
+      "name": "BuyMintEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BuyVaultEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "lamports",
+            "type": "u64"
+          },
+          {
+            "name": "finalized",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "initialized",
+            "type": "bool"
+          },
+          {
+            "name": "finalized",
+            "type": "bool"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "sol_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_vault_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "sale_end",
+            "type": "i64"
+          },
+          {
+            "name": "min_supply_base_units",
+            "type": "u64"
+          },
+          {
+            "name": "total_burned",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "sol_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "sale_end",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MinimumEnforcedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "forced_minted",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RedeemBurnEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "redeemer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RedeemVaultEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "redeemer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SaleFinalizedEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "total_supply",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenVault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "_dummy",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

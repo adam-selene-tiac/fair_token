@@ -1,0 +1,16 @@
+[features]
+seeds = true
+skip-lint = false
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[programs.localnet]
+fair_token = "EGxd8LCM8Y1uMyXrWWapEMh9tH2whZaNBYhaV29Mq9fb"
+
+[programs.devnet]
+fair_token = "EGxd8LCM8Y1uMyXrWWapEMh9tH2whZaNBYhaV29Mq9fb"
+
+[scripts]
+test = "ts-mocha -p tsconfig.json -t 1000000 tests/**/*.ts"

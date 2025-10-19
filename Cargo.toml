@@ -1,0 +1,11 @@
+[workspace]
+members = ["programs/fair_token"]
+
+[workspace.dependencies]
+anchor-lang = "0.31.1"
+anchor-spl  = "0.31.1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
