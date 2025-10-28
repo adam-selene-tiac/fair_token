@@ -7,5 +7,6 @@ anchor-spl  = "0.31.1"
 
 [profile.release]
 opt-level = "s"
-lto = true
 codegen-units = 1
+overflow-checks = true
+lto = "fat"        # optional but common for Solana

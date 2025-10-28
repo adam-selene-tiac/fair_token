@@ -9,7 +9,8 @@ crate-type = ["cdylib", "lib"]
 
 [features]
 no-entrypoint = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
-anchor-lang = { workspace = true }
-anchor-spl  = { workspace = true, features = ["token"] }
+anchor-lang = "0.31.1"
+anchor-spl  = { version = "0.31.1", features = ["token", "metadata"] }

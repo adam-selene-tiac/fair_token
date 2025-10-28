@@ -17,7 +17,7 @@
 
 **Official SHA256** of `target/deploy/fair_token.so`:
 ```
-8adced354f90f48f880c9bfe8e5715293db06371334c9053469655d0b06cd663
+654c9c5ae80159376541395e750a2bf986a9bd1aaaefb03842e78baf3a8f404e
 ```
 
 See **`VERIFY.md`** for the step-by-step reproducible build and verification.

@@ -6,7 +6,11 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::program_option::COption;
+use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::system_program; // so system_program::ID is in scope
+use anchor_spl::metadata::mpl_token_metadata::{
+    accounts::Metadata as MetadataAccount, ID as TOKEN_METADATA_ID,
+};
 use anchor_spl::token::{
     self, spl_token::instruction::AuthorityType, Burn, Mint, MintTo, SetAuthority, Token,
     TokenAccount, Transfer,
@@ -41,6 +45,7 @@ pub mod fair_token {
     /// - Handoffs SPL mint authority from ADMIN to PDA `mint_authority`
     /// - Establishes SOL vault (System-owned PDA) and token vault (program-owned PDA)
     /// - Sets fixed price rule: 1 lamport == 1 base unit (see DECIMALS comment)
+    /// - Ensures metadata has been locked
     pub fn initialize(ctx: Context<Initialize>, sale_end: i64) -> Result<()> {
         // ---- time window checks ----
         let now = Clock::get()?.unix_timestamp;
@@ -51,36 +56,27 @@ pub mod fair_token {
 
         // ---- constants / overflow guard ----
         let base_units_per_token: u64 = 10u64.pow(DECIMALS as u32);
-        // Ensure MIN_SUPPLY_TOKENS * base_units_per_token won't overflow u64
         require!(
             MIN_SUPPLY_TOKENS <= u64::MAX / base_units_per_token,
             ErrorCode::MinSupplyTooLarge
         );
 
-        // ---- one-time init guard (defense-in-depth) ----
+        // ---- one-time init guard ----
         let config = &mut ctx.accounts.config;
         require!(!config.initialized, ErrorCode::AlreadyInitialized);
 
-        // ─────────────────────────────────────────────────────────────────────
-        // Mint authority handoff (admin -> PDA), then invariants
-        // ─────────────────────────────────────────────────────────────────────
+        // ───────────────────────────────────────────────────────────────
+        // SPL Mint authority handoff (admin -> PDA)
+        // (Preconditions are enforced above via account constraints)
+        // ───────────────────────────────────────────────────────────────
         let mint = &mut ctx.accounts.mint;
         let admin = &ctx.accounts.admin;
         let pda = ctx.accounts.mint_authority.key();
 
-        // Pre-handoff checks (must currently be admin)
-        require!(mint.freeze_authority.is_none(), ErrorCode::FreezeNotRevoked);
-        require_eq!(mint.decimals, DECIMALS, ErrorCode::WrongDecimals);
-        require_eq!(mint.supply, 0u64, ErrorCode::NonZeroInitialSupply);
-        require!(
-            matches!(mint.mint_authority, COption::Some(x) if x == admin.key()),
-            ErrorCode::MintAuthorityMustBeAdmin
-        );
-
-        // Handoff: admin → PDA (atomic CPI)
+        // Handoff: admin → PDA
         let cpi_ctx = CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
-            SetAuthority {
+            anchor_spl::token::SetAuthority {
                 account_or_mint: mint.to_account_info(),
                 current_authority: admin.to_account_info(),
             },
@@ -94,11 +90,37 @@ pub mod fair_token {
             ErrorCode::WrongMintAuthority
         );
 
-        // Anchor quirk: `SystemAccount<'info>` can't be directly created via CPI here,
-        // so `sol_vault` is created as a raw AccountInfo and later used as SystemAccount
-        // in buy/redeem. We enforce safety invariants now:
-        //  - owner == System Program
-        //  - data_len == 0 (no account data)
+        // ── Metaplex metadata immutability check (off-chain lock enforced here) ──
+        let (expected_meta_pda, _) = Pubkey::find_program_address(
+            &[
+                b"metadata",
+                TOKEN_METADATA_ID.as_ref(),
+                mint.key().as_ref(), // ✅ use existing mutable reference
+            ],
+            &TOKEN_METADATA_ID,
+        );
+        require_keys_eq!(
+            expected_meta_pda,
+            ctx.accounts.metadata.key(),
+            ErrorCode::BadMetadataPda
+        );
+        // Redundant with #[account(owner = TOKEN_METADATA_ID)], but explicit for auditors:
+        require_keys_eq!(
+            ctx.accounts.metadata.owner.key(),
+            TOKEN_METADATA_ID,
+            ErrorCode::BadMetadataOwner
+        );
+
+        let data = ctx.accounts.metadata.try_borrow_data()?;
+        let meta = MetadataAccount::deserialize(&mut data.as_ref())
+            .map_err(|_| ErrorCode::BadMetadataData)?;
+        // Enforce that the off-chain script already revoked update authority
+        require!(
+            meta.update_authority == system_program::ID,
+            ErrorCode::MetadataStillMutable
+        );
+
+        // ---- SOL vault sanity (defense-in-depth) ----
         let ai = &ctx.accounts.sol_vault;
         require_keys_eq!(*ai.owner, system_program::ID, ErrorCode::InvalidOwner);
         require!(ai.data_len() == 0, ErrorCode::NonZeroData);
@@ -112,7 +134,6 @@ pub mod fair_token {
         config.token_vault_account = ctx.accounts.token_vault_account.key();
         config.sale_end = sale_end;
         config.total_burned = 0;
-        // Safe mul: overflow-guarded above
         config.min_supply_base_units = MIN_SUPPLY_TOKENS * base_units_per_token;
 
         emit!(InitializedEvent {
@@ -390,7 +411,7 @@ fn finalize_sale<'info>(
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    /// Admin signer (hard-gated; remove `address=ADMIN` if you don't want gating)
+    /// Admin signer (hard-gated; remove `address = ADMIN` if you don't want gating)
     #[account(mut, address = ADMIN)]
     pub admin: Signer<'info>,
 
@@ -398,14 +419,15 @@ pub struct Initialize<'info> {
     /// We will handoff authority to the PDA inside this instruction.
     #[account(
         mut,
-        constraint = mint.decimals == DECIMALS                 @ ErrorCode::WrongDecimals,
-        constraint = mint.freeze_authority.is_none()           @ ErrorCode::FreezeNotRevoked,
-        constraint = mint.supply == 0                          @ ErrorCode::NonZeroInitialSupply,
+        constraint = mint.decimals == DECIMALS                       @ ErrorCode::WrongDecimals,
+        constraint = mint.freeze_authority.is_none()                 @ ErrorCode::FreezeNotRevoked,
+        constraint = mint.supply == 0                                @ ErrorCode::NonZeroInitialSupply,
         constraint = mint.mint_authority == Some(admin.key()).into() @ ErrorCode::MintAuthorityMustBeAdmin,
     )]
     pub mint: Account<'info, Mint>,
 
     /// CHECK: PDA that will become the new mint authority (no data needed).
+    /// Only the key is used; seeds prove the PDA.
     #[account(
         seeds = [b"mint_authority"],
         bump
@@ -453,7 +475,16 @@ pub struct Initialize<'info> {
     )]
     pub token_vault_account: Account<'info, TokenAccount>,
 
-    /// Canonical programs
+    // ───────────── Metaplex Token Metadata (auditor-friendly) ─────────────
+    /// CHECK: Must be the real Token Metadata program ID, validated by address constraint
+    #[account(address = TOKEN_METADATA_ID)]
+    pub token_metadata_program: AccountInfo<'info>,
+
+    /// CHECK: Metadata PDA for mint, validated by owner constraint and re-derived at runtime
+    #[account(mut, owner = TOKEN_METADATA_ID)]
+    pub metadata: AccountInfo<'info>,
+
+    // Canonical programs
     #[account(address = token::ID)]
     pub token_program: Program<'info, Token>,
     #[account(address = system_program::ID)]
@@ -471,7 +502,6 @@ pub struct BuyFairToken<'info> {
     /// CHECK: PDA signer derived from static seed; no deserialization needed
     #[account(seeds = [b"mint_authority"], bump)]
     pub mint_authority: AccountInfo<'info>,
-
     #[account(
         mut,
         seeds = [b"config"],
@@ -483,6 +513,8 @@ pub struct BuyFairToken<'info> {
     )]
     pub config: Account<'info, Config>,
 
+    /// CHECK: SOL vault is a PDA used to hold SOL payments.
+    /// Ownership and data length are validated in the initialize function.
     #[account(
         mut,
         seeds = [b"sol_vault"],
@@ -524,7 +556,6 @@ pub struct RedeemFairToken<'info> {
     /// CHECK: PDA signer derived from static seed; no deserialization needed
     #[account(seeds = [b"mint_authority"], bump)]
     pub mint_authority: AccountInfo<'info>,
-
     #[account(
         mut,
         seeds = [b"config"],
@@ -536,6 +567,7 @@ pub struct RedeemFairToken<'info> {
     )]
     pub config: Account<'info, Config>,
 
+    /// CHECK: SOL vault is a PDA used to hold SOL payments.
     #[account(
         mut,
         seeds = [b"sol_vault"],
@@ -648,73 +680,58 @@ pub struct MinimumEnforcedEvent {
 pub enum ErrorCode {
     #[msg("Already initialized.")]
     AlreadyInitialized,
-
     #[msg("Sale end not in the allowed range.")]
     SaleEndNotInRange,
-
     #[msg("Minimum supply is too large.")]
     MinSupplyTooLarge,
-
     #[msg("Mint has no mint authority set.")]
     MintAuthorityMissing,
-
     #[msg("Mint authority does not match the program's PDA.")]
     WrongMintAuthority,
-
     #[msg("Freeze authority must be revoked (None) before initialization.")]
     FreezeNotRevoked,
-
     #[msg("Mint has unexpected decimals.")]
     WrongDecimals,
-
     #[msg("Mint has non-zero supply at initialization.")]
     NonZeroInitialSupply,
-
     #[msg("Account owner must be System Program.")]
     InvalidOwner,
-
     #[msg("Account must have zero data length.")]
     NonZeroData,
-
     #[msg("Wrong mint passed.")]
     WrongMint,
-
     #[msg("Wrong SOL vault for this config.")]
     WrongSolVault,
-
     #[msg("Mint authority must be admin.")]
     MintAuthorityMustBeAdmin,
-
     #[msg("No SOL sent.")]
     NoSOLSent,
-
     #[msg("Insufficient tokens available in vault.")]
     VaultInsufficient,
-
     #[msg("Zero token redeem.")]
     ZeroTokenRedeem,
-
     #[msg("Insufficient FairToken tokens.")]
     InsufficientTokens,
-
     #[msg("Not enough SOL in vault.")]
     VaultSOLInsufficient,
-
     #[msg("Invalid mint.")]
     InvalidMint,
-
     #[msg("Invalid SOL vault address.")]
     InvalidVault,
-
     #[msg("Not initialized.")]
     NotInitialized,
-
     #[msg("Wrong token vault account for this config.")]
     WrongTokenVaultAccount,
-
     #[msg("Token vault does not own token vault account.")]
     WrongVaultAuthority,
-
     #[msg("Wrong token vault for this config.")]
     WrongTokenVault,
+    #[msg("Invalid token metadata PDA for this mint")]
+    BadMetadataPda,
+    #[msg("Token metadata account not owned by Token Metadata program")]
+    BadMetadataOwner,
+    #[msg("Malformed token metadata account data")]
+    BadMetadataData,
+    #[msg("Token metadata update authority was not revoked (expected None)")]
+    MetadataStillMutable,
 }
