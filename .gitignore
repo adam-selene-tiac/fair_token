@@ -8,3 +8,6 @@ node_modules/
 **/*.key
 .env
 .secrets
+.DS_Store
+.claude/
+**/*.rtf
