@@ -24,7 +24,8 @@ jobs:
 
       - name: Install Anchor CLI
         run: |
-          cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.1 anchor-cli --locked --force
+          RUSTFLAGS="$RUSTFLAGS -A mismatched-lifetime-syntaxes" \
+            cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.1 anchor-cli --locked --force
           anchor --version
 
       - name: Verify source code hash (matches Cyberscope audit)
