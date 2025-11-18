@@ -1,0 +1,96 @@
+name: Verify Build Reproducibility
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sunday at midnight UTC
+
+jobs:
+  verify-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v1.18.18/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Verify Solana installation
+        run: |
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
+
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.1 anchor-cli --locked --force
+
+      - name: Verify Anchor installation
+        run: anchor --version
+
+      - name: Verify source code hash (matches Cyberscope audit)
+        run: |
+          SOURCE_HASH=$(shasum -a 256 programs/fair_token/src/lib.rs | awk '{print $1}')
+          EXPECTED_HASH="a628e12427066634e24db6e8f4de4054138efd4f740f2c386218c88a21c156b9"
+          echo "Source hash: $SOURCE_HASH"
+          echo "Expected hash: $EXPECTED_HASH"
+          if [ "$SOURCE_HASH" = "$EXPECTED_HASH" ]; then
+            echo "✅ Source code hash matches Cyberscope audit"
+          else
+            echo "❌ Source code hash does NOT match audit"
+            exit 1
+          fi
+
+      - name: Build program (verifiable)
+        run: |
+          anchor build --verifiable
+
+      - name: Verify built program hash
+        run: |
+          BUILT_HASH=$(shasum -a 256 target/verifiable/fair_token.so | awk '{print $1}')
+          EXPECTED_HASH="ecfa8038958c9fbf31ae316329e4eca21f3b8f36aee34e26744d16cfd5cffc48"
+          echo "Built program hash: $BUILT_HASH"
+          echo "Expected hash: $EXPECTED_HASH"
+          if [ "$BUILT_HASH" = "$EXPECTED_HASH" ]; then
+            echo "✅ Built program hash matches expected verifiable build"
+          else
+            echo "❌ Built program hash does NOT match expected"
+            exit 1
+          fi
+
+      - name: Display verification summary
+        if: success()
+        run: |
+          echo "================================================"
+          echo "✅ VERIFICATION SUCCESSFUL"
+          echo "================================================"
+          echo ""
+          echo "Source code hash (audited by Cyberscope):"
+          echo "  a628e12427066634e24db6e8f4de4054138efd4f740f2c386218c88a21c156b9"
+          echo ""
+          echo "Built program hash (reproducible):"
+          echo "  ecfa8038958c9fbf31ae316329e4eca21f3b8f36aee34e26744d16cfd5cffc48"
+          echo ""
+          echo "The deployed program can be verified by anyone using:"
+          echo "  anchor build --verifiable"
+          echo ""
+          echo "This build is deterministic and reproducible."
+          echo "================================================"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-program
+          path: target/verifiable/fair_token.so
+          retention-days: 90

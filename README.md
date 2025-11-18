@@ -1,6 +1,8 @@
 # TIAC — Fair Token (Solana / Anchor)
 
-**Mission:** a flat-price, trustless token with perpetual 1:1 SOL redemption via a program-controlled vault.  
+[![Verify Build Reproducibility](https://github.com/adam-selene-tiac/fair_token/actions/workflows/verify.yml/badge.svg)](https://github.com/adam-selene-tiac/fair_token/actions/workflows/verify.yml)
+
+**Mission:** a flat-price, trustless token with perpetual 1:1 SOL redemption via a program-controlled vault.
 **License:** CC0-1.0 (public domain)
 
 ---
@@ -12,15 +14,21 @@
 
 ## Reproducible build (linux/amd64)
 
-- Solana: **v2.3.11**  
+- Solana: **v2.3.11**
 - Anchor: **v0.31.1**
 
-**Official SHA256** of `target/deploy/fair_token.so`:
+**Verifiable build SHA256** of `target/verifiable/fair_token.so`:
 ```
-654c9c5ae80159376541395e750a2bf986a9bd1aaaefb03842e78baf3a8f404e
+ecfa8038958c9fbf31ae316329e4eca21f3b8f36aee34e26744d16cfd5cffc48
 ```
 
-See **`VERIFY.md`** for the step-by-step reproducible build and verification.
+**Audited source SHA256** of `programs/fair_token/src/lib.rs` (verified by Cyberscope):
+```
+a628e12427066634e24db6e8f4de4054138efd4f740f2c386218c88a21c156b9
+```
+
+Build reproducibility is verified automatically via GitHub Actions on every commit.
+See the badge above for current status, or run `anchor build --verifiable` yourself.
 
 ---
 
