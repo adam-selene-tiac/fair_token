@@ -22,13 +22,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install Solana CLI
-        run: |
-          sh -c "$(curl -sSfL https://release.solana.com/v1.18.18/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          solana --version
-
       - name: Install Anchor CLI
         run: |
           cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.1 anchor-cli --locked --force
@@ -68,19 +61,19 @@ jobs:
         if: success()
         run: |
           echo "================================================"
-          echo "✅ VERIFICATION SUCCESSFUL"
+          echo "✅ BUILD VERIFICATION SUCCESSFUL"
           echo "================================================"
           echo ""
-          echo "Source code hash (audited by Cyberscope):"
+          echo "✓ Source code hash matches Cyberscope audit:"
           echo "  a628e12427066634e24db6e8f4de4054138efd4f740f2c386218c88a21c156b9"
           echo ""
-          echo "Built program hash (reproducible):"
+          echo "✓ Verifiable build produces expected hash:"
           echo "  ecfa8038958c9fbf31ae316329e4eca21f3b8f36aee34e26744d16cfd5cffc48"
           echo ""
-          echo "The deployed program can be verified by anyone using:"
-          echo "  anchor build --verifiable"
+          echo "✓ Build is deterministic and reproducible"
           echo ""
-          echo "This build is deterministic and reproducible."
+          echo "Anyone can verify this by running:"
+          echo "  anchor build --verifiable"
           echo "================================================"
 
       - name: Upload build artifact
