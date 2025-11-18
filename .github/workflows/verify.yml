@@ -24,7 +24,7 @@ jobs:
 
       - name: Install Anchor CLI
         run: |
-          RUSTFLAGS="$RUSTFLAGS -A mismatched-lifetime-syntaxes" \
+          RUSTFLAGS="$RUSTFLAGS -A mismatched-lifetime-syntaxes -A dead-code" \
             cargo install --git https://github.com/coral-xyz/anchor --tag v0.31.1 anchor-cli --locked --force
           anchor --version
 
