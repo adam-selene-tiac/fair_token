@@ -61,21 +61,27 @@ jobs:
       - name: Display verification summary
         if: success()
         run: |
-          echo "================================================"
-          echo "✅ BUILD VERIFICATION SUCCESSFUL"
-          echo "================================================"
-          echo ""
-          echo "✓ Source code hash matches Cyberscope audit:"
-          echo "  a628e12427066634e24db6e8f4de4054138efd4f740f2c386218c88a21c156b9"
-          echo ""
-          echo "✓ Verifiable build produces expected hash:"
-          echo "  ecfa8038958c9fbf31ae316329e4eca21f3b8f36aee34e26744d16cfd5cffc48"
-          echo ""
-          echo "✓ Build is deterministic and reproducible"
-          echo ""
-          echo "Anyone can verify this by running:"
-          echo "  anchor build --verifiable"
-          echo "================================================"
+          echo "## ✅ BUILD VERIFICATION SUCCESSFUL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Source Code Hash (Cyberscope Audit)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "a628e12427066634e24db6e8f4de4054138efd4f740f2c386218c88a21c156b9" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verifiable Build Binary Hash" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "ecfa8038958c9fbf31ae316329e4eca21f3b8f36aee34e26744d16cfd5cffc48" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verification Details" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Source code hash matches Cyberscope audit" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Verifiable build produces expected hash" >> $GITHUB_STEP_SUMMARY
+          echo "- ✓ Build is deterministic and reproducible" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Anyone can reproduce this verification by running:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "anchor build --verifiable" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
