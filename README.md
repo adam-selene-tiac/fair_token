@@ -44,19 +44,21 @@ See **`ARCHITECTURE.md`** for details.
 
 ---
 
-## Post‑audit hardening checklist
+## Upgrade Authority Status
 
-After the audit, when you deploy the audited build:
+**✅ UPGRADE AUTHORITY PERMANENTLY RENOUNCED**
+
+The program upgrade authority has been permanently revoked and set to `None`. This means the deployed program code can never be modified or replaced. The program is now immutable.
+
+To verify this yourself:
 
 ```bash
-# 1) Permanently revoke program upgrade authority (cannot be undone)
-solana program set-upgrade-authority EGxd8LCM8Y1uMyXrWWapEMh9tH2whZaNBYhaV29Mq9fb --new-upgrade-authority none
-
-# 2) Verify upgrade authority is None
+# Verify upgrade authority is None
 solana program show EGxd8LCM8Y1uMyXrWWapEMh9tH2whZaNBYhaV29Mq9fb
 ```
 
-(If you deploy to devnet first, repeat the check on mainnet once you deploy the audited binary.)
+You can also verify this through the Solana Explorer verified build page:
+https://explorer.solana.com/address/EGxd8LCM8Y1uMyXrWWapEMh9tH2whZaNBYhaV29Mq9fb/verified-build
 
 ---
 
